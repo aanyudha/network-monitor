@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+.Python
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Qt / desktop app artifacts
+*.spec
+
+# Runtime data
+app/data/*.db
+app/data/*.sqlite
+app/data/*.sqlite3
+logs/
+exports/
+config.local.json
+user-settings.json
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+

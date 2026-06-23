@@ -1,0 +1,14 @@
+[project]
+name = "heisenberg-network-monitor"
+version = "0.1.0"
+description = "Open-source desktop network heartbeat and agentless monitoring tool for Windows and Linux."
+readme = "README.md"
+requires-python = ">=3.13"
+license = { text = "MIT" }
+authors = [
+  { name = "Heisenberg Network Monitor contributors" }
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
