@@ -4,6 +4,8 @@ import asyncio
 
 from PySide6.QtCore import QObject, QThread, Signal, Slot
 from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
     QFrame,
     QHBoxLayout,
     QHeaderView,
@@ -17,7 +19,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app.core.models import Device
+from app.core.models import DEVICE_TYPES
 
 
 class DiscoveryWorker(QObject):
@@ -39,10 +41,10 @@ class DiscoveryWorker(QObject):
 
 
 class NetworkPage(QWidget):
-    def __init__(self, monitoring_service, device_actions, snmp_engine) -> None:
+    def __init__(self, monitoring_service, discovery_actions, snmp_engine) -> None:
         super().__init__()
         self._monitoring_service = monitoring_service
-        self._device_actions = device_actions
+        self._discovery_actions = discovery_actions
         self._snmp_engine = snmp_engine
         self._results = []
         self._thread = None
@@ -55,20 +57,26 @@ class NetworkPage(QWidget):
         toolbar = QHBoxLayout()
         self.subnet_edit = QLineEdit("192.168.1.0/24")
         self.scan_button = QPushButton("Scan subnet")
-        self.import_button = QPushButton("Import discovered")
+        self.import_button = QPushButton("Save selected devices")
         toolbar.addWidget(self.subnet_edit)
         toolbar.addWidget(self.scan_button)
         toolbar.addWidget(self.import_button)
 
-        note = QLabel(self._snmp_engine.status_message())
+        note = QLabel(
+            "Discovered devices are auto-classified with best-effort fingerprinting before import. "
+            "Review and adjust types before saving.\n"
+            + self._snmp_engine.status_message()
+        )
         note.setProperty("muted", True)
         note.setWordWrap(True)
 
         panel = QFrame()
         panel.setObjectName("panel")
         panel_layout = QVBoxLayout(panel)
-        self.table = QTableWidget(0, 3)
-        self.table.setHorizontalHeaderLabels(["IP", "Hostname", "Reachable"])
+        self.table = QTableWidget(0, 8)
+        self.table.setHorizontalHeaderLabels(
+            ["Save", "IP", "Hostname", "Detected type", "Confidence", "Discovery notes", "Status", "Manual lock"]
+        )
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         panel_layout.addWidget(self.table)
@@ -94,29 +102,52 @@ class NetworkPage(QWidget):
         self._thread.start()
 
     def _handle_results(self, results) -> None:
-        self._results = list(results)
+        self._results = self._discovery_actions.review(list(results))
         self.table.setRowCount(len(self._results))
+
+        editable_types = [device_type for device_type in DEVICE_TYPES if device_type != "Database"]
         for row_index, item in enumerate(self._results):
-            values = [item.ip_address, item.hostname or "-", "Yes" if item.reachable else "No"]
-            for column_index, value in enumerate(values):
-                self.table.setItem(row_index, column_index, QTableWidgetItem(str(value)))
+            select_check = QCheckBox()
+            select_check.setChecked(not item.is_existing_device)
+            type_combo = QComboBox()
+            type_combo.addItems(editable_types)
+            type_combo.setCurrentText(item.device_type if item.device_type in editable_types else "Unknown")
+            lock_check = QCheckBox()
+
+            self.table.setCellWidget(row_index, 0, select_check)
+            self.table.setItem(row_index, 1, QTableWidgetItem(item.ip_address))
+            self.table.setItem(row_index, 2, QTableWidgetItem(item.hostname or "-"))
+            self.table.setCellWidget(row_index, 3, type_combo)
+            self.table.setItem(row_index, 4, QTableWidgetItem(f"{item.device_type_confidence}%"))
+            self.table.setItem(row_index, 5, QTableWidgetItem(item.discovery_notes or "-"))
+            self.table.setItem(row_index, 6, QTableWidgetItem(item.status))
+            self.table.setCellWidget(row_index, 7, lock_check)
 
     def _handle_error(self, message: str) -> None:
         QMessageBox.warning(self, "Discovery failed", message)
 
     def import_results(self) -> None:
-        created = 0
-        for result in self._results:
-            try:
-                self._device_actions.create(
-                    Device(
-                        name=result.hostname or f"Discovered {result.ip_address}",
-                        ip_address=result.ip_address,
-                        device_type="Other",
-                    )
+        selections = []
+        for row_index, result in enumerate(self._results):
+            save_widget = self.table.cellWidget(row_index, 0)
+            type_widget = self.table.cellWidget(row_index, 3)
+            lock_widget = self.table.cellWidget(row_index, 7)
+            if isinstance(save_widget, QCheckBox) and save_widget.isChecked():
+                selections.append(
+                    {
+                        "result": result,
+                        "selected_type": type_widget.currentText() if isinstance(type_widget, QComboBox) else result.device_type,
+                        "lock_type": lock_widget.isChecked() if isinstance(lock_widget, QCheckBox) else False,
+                    }
                 )
-                created += 1
-            except ValueError:
-                continue
-        QMessageBox.information(self, "Discovery import", f"Imported {created} devices.")
 
+        if not selections:
+            QMessageBox.information(self, "No devices selected", "Choose one or more discovery results to save.")
+            return
+
+        summary = self._discovery_actions.import_selected(selections)
+        QMessageBox.information(
+            self,
+            "Discovery import",
+            f"Created {summary['created']} devices, updated {summary['updated']} devices, skipped {summary['skipped']}.",
+        )

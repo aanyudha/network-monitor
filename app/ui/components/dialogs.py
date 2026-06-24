@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QFormLayout,
     QLineEdit,
+    QLabel,
     QMessageBox,
     QSpinBox,
     QVBoxLayout,
@@ -39,16 +40,27 @@ class DeviceDialog(QDialog):
         self.latency_spin.setValue(device.latency_warning_ms if device else 250)
         self.enabled_check = QCheckBox("Enabled")
         self.enabled_check.setChecked(device.enabled if device else True)
+        self.lock_type_check = QCheckBox("Lock device type as manual override")
+        self.lock_type_check.setChecked(device.device_type_locked if device else False)
+        self.confidence_label = QLabel(
+            f"{device.device_type_confidence}% confidence" if device and device.device_type_confidence else "No discovery confidence"
+        )
+        self.notes_label = QLabel(device.discovery_notes if device and device.discovery_notes else "No discovery notes")
+        self.notes_label.setWordWrap(True)
+        self.notes_label.setProperty("muted", True)
 
         form.addRow("Name", self.name_edit)
         form.addRow("IP address", self.ip_edit)
         form.addRow("Device type", self.type_combo)
+        form.addRow("Discovery confidence", self.confidence_label)
+        form.addRow("Discovery notes", self.notes_label)
         form.addRow("Location", self.location_edit)
         form.addRow("Monitoring profile", self.profile_edit)
         form.addRow("Custom ports", self.ports_edit)
         form.addRow("HTTP URL", self.http_url_edit)
         form.addRow("HTTP keyword", self.http_keyword_edit)
         form.addRow("Latency warning ms", self.latency_spin)
+        form.addRow("", self.lock_type_check)
         form.addRow("", self.enabled_check)
 
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
@@ -58,6 +70,9 @@ class DeviceDialog(QDialog):
         layout.addLayout(form)
         layout.addWidget(buttons)
         self._device_id = device.id if device else None
+        self._original_type = device.device_type if device else ""
+        self._original_confidence = device.device_type_confidence if device else 0
+        self._original_notes = device.discovery_notes if device else ""
 
     def accept(self) -> None:
         try:
@@ -80,6 +95,9 @@ class DeviceDialog(QDialog):
             name=self.name_edit.text().strip(),
             ip_address=self.ip_edit.text().strip(),
             device_type=self.type_combo.currentText(),
+            device_type_confidence=self._original_confidence,
+            discovery_notes=self._original_notes,
+            device_type_locked=self.lock_type_check.isChecked() or self.type_combo.currentText() != self._original_type,
             location=self.location_edit.text().strip(),
             monitoring_profile=self.profile_edit.text().strip() or "standard",
             enabled=self.enabled_check.isChecked(),
@@ -88,4 +106,3 @@ class DeviceDialog(QDialog):
             http_keyword=self.http_keyword_edit.text().strip(),
             latency_warning_ms=self.latency_spin.value(),
         )
-

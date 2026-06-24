@@ -29,7 +29,7 @@ class DashboardService:
         latency_values = []
 
         for row in device_rows:
-            status = row["status"] or "Unknown"
+            status = "Unknown" if not bool(row["enabled"]) else row["status"] or "Unknown"
             if status == "Online":
                 summary.online_devices += 1
             elif status == "Offline":
@@ -66,4 +66,3 @@ class DashboardService:
             summary.network_health_percent = round((healthy / summary.total_devices) * 100, 1)
         summary.recent_alerts = self._alert_service.recent_alerts(8)
         return summary
-

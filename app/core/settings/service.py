@@ -9,7 +9,7 @@ DEFAULT_SETTINGS = {
     "ping_timeout_ms": 1200,
     "retry_count": 1,
     "theme_mode": "dark",
-    "database_path": "app/data/heisenberg_monitor.db",
+    "database_path": "data/heisenberg_monitor.db",
 }
 
 
@@ -52,4 +52,3 @@ class SettingsService:
         merged = dict(DEFAULT_SETTINGS)
         merged.update(settings)
         return merged
-

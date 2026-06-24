@@ -14,7 +14,9 @@ Heisenberg Network Monitor is a PySide6 desktop application for agentless device
 - TCP port checks for common and custom ports
 - HTTP and HTTPS availability checks with optional keyword matching
 - Subnet discovery for example ranges such as `192.168.1.0/24`
+- Best-effort discovery classification with confidence scoring and review-before-save import flow
 - Alert history with offline, latency, port, and HTTP failure events
+- Traffic visibility imports from DNS and firewall CSV logs with per-device summaries
 - CSV report export for downtime and availability
 - Light and dark themes
 
@@ -39,11 +41,21 @@ python -m app.main
 
 On first run, the application creates a local SQLite database and seeds sample devices using documentation-safe example addresses.
 
-## Build and packaging notes
+## Build Windows EXE
 
-- The project targets Python 3.13.3.
-- PySide6 supports Windows and Linux builds.
-- A future packaging pass can add PyInstaller or Nuitka without changing the core architecture.
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+pip install -r requirements-dev.txt
+python -m pytest
+powershell -ExecutionPolicy Bypass -File .\scripts\build_windows_exe.ps1
+```
+
+The EXE is generated at `dist/HeisenbergNetworkMonitor/HeisenbergNetworkMonitor.exe`.
+Generated `build/` and `dist/` folders are ignored by git.
+
+More detail lives in [docs/BUILD_WINDOWS.md](docs/BUILD_WINDOWS.md).
 
 ## Heisenberg Framework summary
 
@@ -61,6 +73,8 @@ More detail lives in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 No agent is required on monitored PCs or servers. The current release uses IP-based heartbeat, TCP connectivity, HTTP requests, and discovery scans. SNMP is prepared behind an abstraction for future interface and bandwidth monitoring.
 
+Traffic visibility is also agentless, but it depends on imported DNS, firewall, proxy, or future flow-export logs. Agentless IP discovery alone cannot reveal per-PC browsing history or destination domains.
+
 ## Roadmap
 
 See [docs/ROADMAP.md](docs/ROADMAP.md).
@@ -72,4 +86,3 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 ## License
 
 MIT. See [LICENSE](LICENSE).
-

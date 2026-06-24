@@ -30,14 +30,18 @@ class DeviceRepository:
             cursor = connection.execute(
                 """
                 INSERT INTO devices (
-                    name, ip_address, device_type, location, monitoring_profile, enabled,
-                    custom_ports, http_url, http_keyword, latency_warning_ms, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    name, ip_address, device_type, device_type_confidence, discovery_notes, device_type_locked,
+                    location, monitoring_profile, enabled, custom_ports, http_url, http_keyword,
+                    latency_warning_ms, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     device.name,
                     device.ip_address,
                     device.device_type,
+                    device.device_type_confidence,
+                    device.discovery_notes,
+                    int(device.device_type_locked),
                     device.location,
                     device.monitoring_profile,
                     int(device.enabled),
@@ -63,8 +67,9 @@ class DeviceRepository:
             connection.execute(
                 """
                 UPDATE devices SET
-                    name = ?, ip_address = ?, device_type = ?, location = ?, monitoring_profile = ?,
-                    enabled = ?, custom_ports = ?, http_url = ?, http_keyword = ?,
+                    name = ?, ip_address = ?, device_type = ?, device_type_confidence = ?, discovery_notes = ?,
+                    device_type_locked = ?, location = ?, monitoring_profile = ?, enabled = ?, custom_ports = ?,
+                    http_url = ?, http_keyword = ?,
                     latency_warning_ms = ?, updated_at = ?
                 WHERE id = ?
                 """,
@@ -72,6 +77,9 @@ class DeviceRepository:
                     device.name,
                     device.ip_address,
                     device.device_type,
+                    device.device_type_confidence,
+                    device.discovery_notes,
+                    int(device.device_type_locked),
                     device.location,
                     device.monitoring_profile,
                     int(device.enabled),
@@ -100,6 +108,9 @@ class DeviceRepository:
             name=row["name"],
             ip_address=row["ip_address"],
             device_type=row["device_type"],
+            device_type_confidence=row["device_type_confidence"] if "device_type_confidence" in row.keys() else 0,
+            discovery_notes=row["discovery_notes"] if "discovery_notes" in row.keys() else "",
+            device_type_locked=bool(row["device_type_locked"]) if "device_type_locked" in row.keys() else False,
             location=row["location"],
             monitoring_profile=row["monitoring_profile"],
             enabled=bool(row["enabled"]),
@@ -110,4 +121,3 @@ class DeviceRepository:
             created_at=row["created_at"],
             updated_at=row["updated_at"],
         )
-

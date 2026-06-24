@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 
 from app.engines.heartbeat.engine import HeartbeatEngine
+from app.main import main
 
 
 def test_heartbeat_output_parsers() -> None:
@@ -21,3 +22,7 @@ def test_invalid_subnet_is_rejected(monitoring_service) -> None:
         assert "valid subnet" in str(exc)
     else:
         raise AssertionError("Expected ValueError for invalid subnet")
+
+
+def test_packaging_entrypoint_imports_without_launching_ui() -> None:
+    assert callable(main)

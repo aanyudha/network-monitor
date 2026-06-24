@@ -19,13 +19,13 @@ build/
 dist/
 *.egg-info/
 
-# Qt / desktop app artifacts
-*.spec
-
 # Runtime data
 app/data/*.db
 app/data/*.sqlite
 app/data/*.sqlite3
+data/*.db
+data/*.sqlite
+data/*.sqlite3
 logs/
 exports/
 config.local.json
@@ -36,4 +36,3 @@ user-settings.json
 Thumbs.db
 .idea/
 .vscode/
-

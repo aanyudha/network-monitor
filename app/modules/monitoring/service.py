@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 
 from app.core.event_bus.bus import EventBus
 from app.core.models import Device, DeviceStatus, STATUS_OFFLINE, STATUS_ONLINE, STATUS_UNKNOWN, STATUS_WARNING, utc_now
+from app.core.status import build_status_snapshot
 from app.core.notifications.service import NotificationService
 from app.engines.alert.engine import AlertEngine
 from app.engines.heartbeat.engine import HeartbeatEngine
@@ -83,7 +84,15 @@ class MonitoringService:
         if device.http_url:
             http_result = await self._http_engine.check(device.http_url, device.http_keyword)
 
-        current_status = self._build_status(device, previous_status, heartbeat, list(port_results), http_result)
+        current_status = build_status_snapshot(
+            device=device,
+            previous=previous_status,
+            heartbeat=heartbeat,
+            port_results=list(port_results),
+            http_result=http_result,
+            retry_count=int(settings["retry_count"]),
+            checked_at=utc_now(),
+        )
         self._save_status(device, current_status)
         alerts, resolved_types = self._alert_engine.evaluate(
             device, previous_status, current_status, heartbeat, list(port_results), http_result
@@ -93,48 +102,6 @@ class MonitoringService:
         for alert in alerts:
             self._alert_service.create_alert(alert)
 
-    def _build_status(self, device: Device, previous: DeviceStatus | None, heartbeat, port_results, http_result):
-        checked_at = utc_now()
-        if heartbeat.reachable:
-            status = STATUS_ONLINE
-        elif heartbeat.error:
-            status = STATUS_OFFLINE
-        else:
-            status = STATUS_UNKNOWN
-
-        if heartbeat.reachable and (
-            (heartbeat.latency_ms is not None and heartbeat.latency_ms > device.latency_warning_ms)
-            or any(not result.is_open for result in port_results)
-            or (http_result is not None and not http_result.ok)
-        ):
-            status = STATUS_WARNING
-
-        last_seen = checked_at if heartbeat.reachable else previous.last_seen if previous else None
-        downtime_start = previous.downtime_start if previous else None
-        downtime_end = previous.downtime_end if previous else None
-
-        if status == STATUS_OFFLINE and (previous is None or previous.status != STATUS_OFFLINE):
-            downtime_start = checked_at
-            downtime_end = None
-        elif previous and previous.status == STATUS_OFFLINE and status != STATUS_OFFLINE:
-            downtime_end = checked_at
-
-        return DeviceStatus(
-            device_id=device.id or 0,
-            status=status,
-            latency_ms=heartbeat.latency_ms,
-            packet_loss=heartbeat.packet_loss,
-            last_seen=last_seen,
-            downtime_start=downtime_start,
-            downtime_end=downtime_end,
-            last_error=heartbeat.error or (http_result.error if http_result and not http_result.ok else ""),
-            open_ports=[result.port for result in port_results if result.is_open],
-            http_status_code=http_result.status_code if http_result else None,
-            http_response_ms=http_result.response_ms if http_result else None,
-            http_ok=http_result.ok if http_result else None,
-            checked_at=checked_at,
-        )
-
     def _get_previous_status(self, device_id: int) -> DeviceStatus | None:
         with self._connection_factory() as connection:
             row = connection.execute("SELECT * FROM device_status WHERE device_id = ?", (device_id,)).fetchone()
@@ -143,6 +110,7 @@ class MonitoringService:
         return DeviceStatus(
             device_id=row["device_id"],
             status=row["status"],
+            consecutive_failures=row["consecutive_failures"] if "consecutive_failures" in row.keys() else 0,
             latency_ms=row["latency_ms"],
             packet_loss=row["packet_loss"],
             last_seen=row["last_seen"],
@@ -161,11 +129,13 @@ class MonitoringService:
             connection.execute(
                 """
                 INSERT INTO device_status (
-                    device_id, status, latency_ms, packet_loss, last_seen, downtime_start, downtime_end,
-                    last_error, open_ports, http_status_code, http_response_ms, http_ok, checked_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    device_id, status, consecutive_failures, latency_ms, packet_loss, last_seen,
+                    downtime_start, downtime_end, last_error, open_ports, http_status_code,
+                    http_response_ms, http_ok, checked_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(device_id) DO UPDATE SET
                     status = excluded.status,
+                    consecutive_failures = excluded.consecutive_failures,
                     latency_ms = excluded.latency_ms,
                     packet_loss = excluded.packet_loss,
                     last_seen = excluded.last_seen,
@@ -181,6 +151,7 @@ class MonitoringService:
                 (
                     status.device_id,
                     status.status,
+                    status.consecutive_failures,
                     status.latency_ms,
                     status.packet_loss,
                     status.last_seen,
@@ -211,4 +182,3 @@ class MonitoringService:
                 ),
             )
             connection.commit()
-

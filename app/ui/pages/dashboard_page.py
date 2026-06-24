@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.ui.components.cards import SectionHeader, SummaryCard
+from app.ui.components.status_badge import StatusBadge
 
 
 class DashboardPage(QWidget):
@@ -92,16 +93,20 @@ class DashboardPage(QWidget):
                 row["name"],
                 row["ip_address"],
                 row["device_type"],
-                row["status"],
                 "-" if row["latency_ms"] is None else f'{row["latency_ms"]:.1f} ms',
                 row["open_ports"] or "-",
                 row["checked_at"],
             ]
             for column_index, value in enumerate(values):
-                self.status_table.setItem(row_index, column_index, QTableWidgetItem(str(value)))
+                target_column = column_index if column_index < 3 else column_index + 1
+                self.status_table.setItem(row_index, target_column, QTableWidgetItem(str(value)))
+            self.status_table.setCellWidget(
+                row_index,
+                3,
+                StatusBadge(row["status"], enabled=bool(row["enabled"])),
+            )
 
         self.alerts_list.clear()
         for alert in summary.recent_alerts:
             item = QListWidgetItem(f"[{alert.severity.upper()}] {alert.message} ({alert.created_at})")
             self.alerts_list.addItem(item)
-

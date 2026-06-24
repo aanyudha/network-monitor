@@ -59,6 +59,7 @@ class MainWindow(QMainWindow):
         self,
         device_service,
         device_actions,
+        discovery_actions,
         dashboard_service,
         alert_service,
         monitoring_service,
@@ -66,6 +67,9 @@ class MainWindow(QMainWindow):
         settings_service,
         notifications,
         snmp_engine,
+        import_dns_log_action,
+        import_firewall_log_action,
+        list_device_traffic_action,
     ) -> None:
         super().__init__()
         self._dashboard_service = dashboard_service
@@ -129,10 +133,17 @@ class MainWindow(QMainWindow):
 
         self.stack = QStackedWidget()
         self.dashboard_page = DashboardPage()
-        self.devices_page = DevicesPage(device_service, device_actions)
-        self.alerts_page = AlertsPage(alert_service)
+        self.devices_page = DevicesPage(
+            device_service,
+            device_actions,
+            dashboard_service,
+            import_dns_log_action,
+            import_firewall_log_action,
+            list_device_traffic_action,
+        )
+        self.alerts_page = AlertsPage(alert_service, dashboard_service)
         self.reports_page = ReportsPage(reporting_service)
-        self.network_page = NetworkPage(monitoring_service, device_actions, snmp_engine)
+        self.network_page = NetworkPage(monitoring_service, discovery_actions, snmp_engine)
         for page in [
             self.dashboard_page,
             self.devices_page,
@@ -210,4 +221,3 @@ class MainWindow(QMainWindow):
 
     def _show_notification(self, title: str, message: str) -> None:
         self.statusBar().showMessage(f"{title}: {message}", 8000)
-
